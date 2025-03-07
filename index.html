@@ -1,336 +1,416 @@
-<div id="gameTitle">만 단위</div>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>휘매쓰 연산 챌린지!</title>
+  <style>
+    body {
+      font-family: 'Nanum Gothic', sans-serif;
+      text-align: center;
+      background-color: #f0f8ff;
+      margin: 0;
+      padding: 0;
+    }
+    #start-screen, #end-screen {
+      margin: 50px auto;
+    }
+    #game-container {
+      max-width: 800px;
+      margin: auto;
+      padding: 20px;
+    }
+    #energy-bar {
+      width: 80%;
+      height: 20px;
+      background-color: #ddd;
+      margin: 20px auto;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    #energy {
+      width: 100%;
+      height: 100%;
+      background-color: #76c7c0;
+    }
+    .hidden {
+      display: none;
+    }
+    #question {
+      font-size: 1.5em;
+      margin-bottom: 20px;
+      padding: 0 20px;
+    }
+    .option {
+      display: block;
+      margin: 10px auto;
+      padding: 10px 20px;
+      width: 60%;
+      max-width: 400px;
+      font-size: 1.2em;
+      cursor: pointer;
+      background-color: #e0f7fa;
+      border: 2px solid #0097a7;
+      border-radius: 5px;
+    }
+    #score, #lives, #total-time {
+      font-size: 1em;
+      margin: 10px;
+    }
+    #popup {
+      position: fixed;
+      top: 30%;
+      left: 50%;
+      transform: translate(-50%, -30%);
+      background-color: #fff9c4;
+      padding: 20px;
+      border: 2px solid #ffeb3b;
+      border-radius: 10px;
+      display: none;
+      z-index: 1000;
+    }
+    #difficulty-selection button, #start-screen button, #end-screen button {
+      font-size: 1.2em;
+      margin: 10px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- 시작 화면: 이름 입력 -->
+  <div id="start-screen">
+    <h1>휘매쓰 연산 챌린지!</h1>
+    <input type="text" id="user-name" placeholder="이름을 입력하세요">
+    <br>
+    <button onclick="initGame()">게임시작</button>
+  </div>
 
-<!-- 이름 입력 필드 -->
-<div id="nameInputContainer">
-    <label for="playerName">이름을 입력하세요: </label>
-    <input type="text" id="playerName" placeholder="이름을 입력하세요">
-</div>
+  <!-- 게임 화면: 난이도 선택 및 게임 진행 -->
+  <div id="game-container" class="hidden">
+    <div id="difficulty-selection">
+      <p>난이도를 선택하세요:</p>
+      <button onclick="startGame('최상')">최상</button>
+      <button onclick="startGame('상')">상</button>
+      <button onclick="startGame('중')">중</button>
+      <button onclick="startGame('하')">하</button>
+    </div>
+    <div id="game" class="hidden">
+      <div id="energy-bar">
+        <div id="energy"></div>
+      </div>
+      <div id="question"></div>
+      <div id="options">
+        <button class="option" onclick="checkAnswer(0)" id="option0"></button>
+        <button class="option" onclick="checkAnswer(1)" id="option1"></button>
+        <button class="option" onclick="checkAnswer(2)" id="option2"></button>
+        <button class="option" onclick="checkAnswer(3)" id="option3"></button>
+      </div>
+      <!-- 각 문제 후에 다음 문제로 넘어가기 위한 버튼 -->
+      <button id="next-question" class="hidden" onclick="handleNextQuestion()">다음문제</button>
+      <div id="score">점수: 0</div>
+      <div id="lives">남은 기회: 3</div>
+      <div id="total-time">총 게임 시간: 0초</div>
+    </div>
+  </div>
 
-<div id="scoreBoard">점수: <span id="score">0</span> | 남은 기회: <span id="lives">3</span>/3</div>
-<div id="energyBarContainer">
-    <div id="energyBar"></div>
-</div>
-<div id="questionDisplay"></div>
-<div id="buttonsContainer"></div>
-<div id="resultMessage"></div>
-<button id="startButton">게임시작</button>
-<div id="finalScore"></div>
-<button id="sendScoreButton" style="display: none;">전송하기</button>
-<div id="response"></div>
+  <!-- 게임 종료 후 결과 및 서버 전송 화면 -->
+  <div id="end-screen" class="hidden">
+    <h2>게임 종료!</h2>
+    <p id="final-score"></p>
+    <p id="final-time"></p>
+    <button onclick="sendData()">전송하기</button>
+    <pre id="response"></pre>
+  </div>
 
-<!-- 워터마크 -->
-<div id="watermark">휘매쓰</div>
+  <div id="popup"></div>
 
-<!-- 스크립트 -->
-<script>
+  <script>
+    // 전역 변수
+    let userName = "";
+    const problems = [
+      { question: '철수는 사과를 1개 가지고 있습니다. 영희는 사과를 1개 가지고 있습니다. 두 사람이 가진 사과는 모두 몇 개입니까?', answer: 2 },
+      { question: '민수는 연필을 2자루 가지고 있습니다. 지혜는 연필을 1자루 가지고 있습니다. 두 사람이 가진 연필은 모두 몇 자루입니까?', answer: 3 },
+      { question: '동수는 공을 1개 가지고 있습니다. 미나는 동수보다 3개 더 많이 가지고 있습니다. 두 사람이 가진 공은 모두 몇 개입니까?', answer: 5 },
+      { question: '지훈은 바나나를 2개 가지고 있습니다. 수지는 바나나를 4개 가지고 있습니다. 두 사람이 가진 바나나는 모두 몇 개입니까?', answer: 6 },
+      { question: '지민은 책을 3권 가지고 있습니다. 유나는 책을 4권 가지고 있습니다. 두 사람이 가진 책은 모두 몇 권입니까?', answer: 7 },
+      { question: '철수는 쿠키를 2개 가지고 있습니다. 영희는 철수보다 6개 더 많이 가지고 있습니다. 두 사람이 가진 쿠키는 모두 몇 개입니까?', answer: 10 },
+      { question: '민수는 과자를 5개 가지고 있습니다. 지혜는 과자를 5개 가지고 있습니다. 두 사람이 가진 과자는 모두 몇 개입니까?', answer: 10 },
+      { question: '동수는 귤을 3개 가지고 있습니다. 미나는 동수보다 8개 더 많이 가지고 있습니다. 두 사람이 가진 귤은 모두 몇 개입니까?', answer: 14 },
+      { question: '지훈은 초콜릿을 6개 가지고 있습니다. 수지는 초콜릿을 8개 가지고 있습니다. 두 사람이 가진 초콜릿은 모두 몇 개입니까?', answer: 14 },
+      { question: '지민은 지우개를 7개 가지고 있습니다. 유나는 지우개를 8개 가지고 있습니다. 두 사람이 가진 지우개는 모두 몇 개입니까?', answer: 15 },
+      { question: '철수는 사탕을 4개 가지고 있습니다. 영희는 철수보다 12개 더 많이 가지고 있습니다. 두 사람이 가진 사탕은 모두 몇 개입니까?', answer: 20 },
+      { question: '민수는 연필을 5자루 가지고 있습니다. 지혜는 민수보다 3자루 더 많이 가지고 있습니다. 두 사람이 가진 연필은 모두 몇 자루입니까?', answer: 13 },
+      { question: '동수는 공책을 6권 가지고 있습니다. 미나는 동수보다 2권 더 많이 가지고 있습니다. 두 사람이 가진 공책은 모두 몇 권입니까?', answer: 14 },
+      { question: '지훈은 바나나를 2개 가지고 있습니다. 수지는 바나나를 5개 가지고 있습니다. 두 사람이 가진 바나나는 모두 몇 개입니까?', answer: 7 },
+      { question: '지민은 사과를 3개 가지고 있습니다. 유나는 사과를 2개 가지고 있습니다. 두 사람이 가진 사과는 모두 몇 개입니까?', answer: 5 },
+      { question: '철수는 연필을 4자루 가지고 있습니다. 영희는 철수보다 5자루 더 많이 가지고 있습니다. 두 사람이 가진 연필은 모두 몇 자루입니까?', answer: 13 },
+      { question: '민수는 지우개를 1개 가지고 있습니다. 지혜는 지우개를 2개 가지고 있습니다. 두 사람이 가진 지우개는 모두 몇 개입니까?', answer: 3 },
+      { question: '동수는 책을 5권 가지고 있습니다. 미나는 동수보다 4권 더 많이 가지고 있습니다. 두 사람이 가진 책은 모두 몇 권입니까?', answer: 14 },
+      { question: '지훈은 쿠키를 2개 가지고 있습니다. 수지는 지훈보다 1개 더 많이 가지고 있습니다. 두 사람이 가진 쿠키는 모두 몇 개입니까?', answer: 5 },
+      { question: '지민은 과자를 7개 가지고 있습니다. 유나는 과자를 6개 가지고 있습니다. 두 사람이 가진 과자는 모두 몇 개입니까?', answer: 13 },
+      { question: '철수는 귤을 3개 가지고 있습니다. 영희는 철수보다 7개 더 많이 가지고 있습니다. 두 사람이 가진 귤은 모두 몇 개입니까?', answer: 13 },
+      { question: '민수는 초콜릿을 4개 가지고 있습니다. 지혜는 초콜릿을 3개 가지고 있습니다. 두 사람이 가진 초콜릿은 모두 몇 개입니까?', answer: 7 },
+      { question: '동수는 사탕을 2개 가지고 있습니다. 미나는 사탕을 2개 가지고 있습니다. 두 사람이 가진 사탕은 모두 몇 개입니까?', answer: 4 },
+      { question: '지훈은 연필을 1자루 가지고 있습니다. 수지는 지훈보다 8자루 더 많이 가지고 있습니다. 두 사람이 가진 연필은 모두 몇 자루입니까?', answer: 10 },
+      { question: '지민은 공책을 5권 가지고 있습니다. 유나는 지민보다 9권 더 많이 가지고 있습니다. 두 사람이 가진 공책은 모두 몇 권입니까?', answer: 19 },
+      { question: '철수는 바나나를 6개 가지고 있습니다. 영희는 바나나를 3개 가지고 있습니다. 두 사람이 가진 바나나는 모두 몇 개입니까?', answer: 9 },
+      { question: '민수는 사과를 2개 가지고 있습니다. 지혜는 사과를 4개 가지고 있습니다. 두 사람이 가진 사과는 모두 몇 개입니까?', answer: 6 },
+      { question: '동수는 지우개를 5개 가지고 있습니다. 미나는 동수보다 5개 더 많이 가지고 있습니다. 두 사람이 가진 지우개는 모두 몇 개입니까?', answer: 15 },
+      { question: '지훈은 책을 3권 가지고 있습니다. 수지는 책을 5권 가지고 있습니다. 두 사람이 가진 책은 모두 몇 권입니까?', answer: 8 },
+      { question: '지민은 쿠키를 2개 가지고 있습니다. 유나는 지민보다 9개 더 많이 가지고 있습니다. 두 사람이 가진 쿠키는 모두 몇 개입니까?', answer: 13 },
+      { question: '철수는 과자를 1개 가지고 있습니다. 영희는 철수보다 11개 더 많이 가지고 있습니다. 두 사람이 가진 과자는 모두 몇 개입니까?', answer: 13 },
+      { question: '민수는 귤을 7개 가지고 있습니다. 지혜는 귤을 3개 가지고 있습니다. 두 사람이 가진 귤은 모두 몇 개입니까?', answer: 10 },
+      { question: '동수는 초콜릿을 4개 가지고 있습니다. 미나는 동수보다 2개 더 많이 가지고 있습니다. 두 사람이 가진 초콜릿은 모두 몇 개입니까?', answer: 10 },
+      { question: '지훈은 사탕을 1개 가지고 있습니다. 수지는 사탕을 9개 가지고 있습니다. 두 사람이 가진 초콜릿은 모두 몇 개입니까?', answer: 10 },
+      { question: '지민은 사탕을 3개 가지고 있습니다. 유나는 사탕을 10개 가지고 있습니다. 두 사람이 가진 사탕은 모두 몇 개입니까?', answer: 13 },
+      { question: '철수는 연필을 2자루 가지고 있습니다. 영희는 철수보다 4자루 더 많이 가지고 있습니다. 두 사람이 가진 연필은 모두 몇 자루입니까?', answer: 8 },
+      { question: '민수는 공책을 1권 가지고 있습니다. 지혜는 공책을 6권 가지고 있습니다. 두 사람이 가진 공책은 모두 몇 권입니까?', answer: 7 },
+      { question: '동수는 바나나를 3개 가지고 있습니다. 미나는 동수보다 11개 더 많이 가지고 있습니다. 두 사람이 가진 바나나는 모두 몇 개입니까?', answer: 17 },
+      { question: '지훈은 사과를 4개 가지고 있습니다. 수지는 사과를 2개 가지고 있습니다. 두 사람이 가진 사과는 모두 몇 개입니까?', answer: 6 },
+      { question: '지민은 지우개를 5개 가지고 있습니다. 유나는 지민보다 5개 더 많이 가지고 있습니다. 두 사람이 가진 지우개는 모두 몇 개입니까?', answer: 15 },
+      { question: '철수는 책을 2권 가지고 있습니다. 영희는 책을 10권 가지고 있습니다. 두 사람이 가진 책은 모두 몇 권입니까?', answer: 12 },
+      { question: '민수는 쿠키를 1개 가지고 있습니다. 지혜는 민수보다 6개 더 많이 가지고 있습니다. 두 사람이 가진 쿠키는 모두 몇 개입니까?', answer: 8 },
+      { question: '동수는 과자를 3개 가지고 있습니다. 미나는 동수보다 7개 더 많이 가지고 있습니다. 두 사람이 가진 과자는 모두 몇 개입니까?', answer: 13 },
+      { question: '지훈은 귤을 2개 가지고 있습니다. 수지는 귤을 3개 가지고 있습니다. 두 사람이 가진 귤은 모두 몇 개입니까?', answer: 5 }
+    ];
+    let energyInterval;
+    let totalTimeInterval;
+    let energyWidth;
+    let energyDecreaseRate;
+    let currentProblemIndex;
     let score = 0;
     let lives = 3;
-    let timeLimit = 40000; // 초기 제한 시간 40초
-    let timeRemaining;
-    let energyBarInterval;
-    let gameStartTime;
-    let elapsedTime = 0;
-    let playerName = '';
+    let totalTime = 0;
+    let difficulty;
+    let pointsPerQuestion;
+    let timeLimit;
+    let problemSequence = [];
+    let initialTimeLimit;
+    let answerSubmitted = false;
+    // 현재 문제의 정답 저장 (alert용)
+    window.currentAnswer = null;
 
-    let selectedAnswer = null;
-    let currentCorrectAnswer = null;
-    let timeExpired = false;
-    let nextQuestionButton = null; // 각 문제마다 생성
-
-    const questionDisplay = document.getElementById('questionDisplay');
-    const buttonsContainer = document.getElementById('buttonsContainer');
-    const resultMessage = document.getElementById('resultMessage');
-    const finalScore = document.getElementById('finalScore');
-    const startButton = document.getElementById('startButton');
-    const scoreElement = document.getElementById('score');
-    const livesElement = document.getElementById('lives');
-    const energyBar = document.getElementById('energyBar');
-    const sendScoreButton = document.getElementById('sendScoreButton');
-    const responseDiv = document.getElementById('response');
-    const playerNameInput = document.getElementById('playerName');
-
-    // 문제 데이터 (각 유형별 8문제)
-    const questions = [
-        { text: "10000은 9000보다 ?만큼 더 큰 수입니다.", answer: 1000 },
-        { text: "10000은 8500보다 ?만큼 더 큰 수입니다.", answer: 1500 },
-        { text: "10000은 7500보다 ?만큼 더 큰 수입니다.", answer: 2500 },
-        { text: "10000은 5000보다 ?만큼 더 큰 수입니다.", answer: 5000 },
-        { text: "10000은 9500보다 ?만큼 더 큰 수입니다.", answer: 500 },
-        { text: "10000은 3000보다 ?만큼 더 큰 수입니다.", answer: 7000 },
-        { text: "10000은 6000보다 ?만큼 더 큰 수입니다.", answer: 4000 },
-        { text: "10000은 8000보다 ?만큼 더 큰 수입니다.", answer: 2000 },
-
-        { text: "10000은 ?보다 10만큼 더 큰 수입니다.", answer: 9990 },
-        { text: "10000은 ?보다 20만큼 더 큰 수입니다.", answer: 9980 },
-        { text: "10000은 ?보다 100만큼 더 큰 수입니다.", answer: 9900 },
-        { text: "10000은 ?보다 50만큼 더 큰 수입니다.", answer: 9950 },
-        { text: "10000은 ?보다 500만큼 더 큰 수입니다.", answer: 9500 },
-        { text: "10000은 ?보다 2000만큼 더 큰 수입니다.", answer: 8000 },
-        { text: "10000은 ?보다 4000만큼 더 큰 수입니다.", answer: 6000 },
-        { text: "10000은 ?보다 7000만큼 더 큰 수입니다.", answer: 3000 },
-
-        { text: "1000이 10개인 수는 ? 입니다.", answer: 10000 },
-        { text: "1000이 5개인 수는 ? 입니다.", answer: 5000 },
-        { text: "1000이 3개인 수는 ? 입니다.", answer: 3000 },
-        { text: "1000이 6개인 수는 ? 입니다.", answer: 6000 },
-        { text: "1000이 8개인 수는 ? 입니다.", answer: 8000 },
-        { text: "1000이 2개인 수는 ? 입니다.", answer: 2000 },
-        { text: "1000이 9개인 수는 ? 입니다.", answer: 9000 },
-        { text: "1000이 4개인 수는 ? 입니다.", answer: 4000 },
-
-        { text: "10000이 2개인 수는 ?입니다.", answer: 20000 },
-        { text: "10000이 1개인 수는 ?입니다.", answer: 10000 },
-        { text: "10000이 3개인 수는 ?입니다.", answer: 30000 },
-        { text: "10000이 4개인 수는 ?입니다.", answer: 40000 },
-        { text: "10000이 5개인 수는 ?입니다.", answer: 50000 },
-        { text: "10000이 6개인 수는 ?입니다.", answer: 60000 },
-        { text: "10000이 7개인 수는 ?입니다.", answer: 70000 },
-        { text: "10000이 8개인 수는 ?입니다.", answer: 80000 },
-
-        { text: "10000이 3개인 수는 ?라고 읽습니다.", answer: "삼만" },
-        { text: "30512는 ?라고 읽습니다.", answer: "삼만오백십이" },
-        { text: "12000은 ?라고 읽습니다.", answer: "만이천" },
-        { text: "47000은 ?라고 읽습니다.", answer: "사만칠천" },
-        { text: "69000은 ?라고 읽습니다.", answer: "육만구천" },
-        { text: "51000은 ?라고 읽습니다.", answer: "오만천" },
-        { text: "15000은 ?라고 읽습니다.", answer: "만오천" },
-        { text: "37000은 ?라고 읽습니다.", answer: "삼만칠천" },
-
-        { text: "10000이 3개, 1000이 2개, 100이 1개, 10이 7개, 1이 9개인 수는 ?입니다.", answer: 32079 },
-        { text: "10000이 2개, 1000이 5개, 100이 4개, 10이 8개인 수는 ?입니다.", answer: 25480 },
-        { text: "10000이 4개, 1000이 3개, 100이 6개, 10이 9개인 수는 ?입니다.", answer: 43690 },
-        { text: "10000이 5개, 1000이 1개, 100이 9개, 10이 3개인 수는 ?입니다.", answer: 51930 },
-        { text: "10000이 2개, 1000이 7개, 100이 5개, 10이 4개인 수는 ?입니다.", answer: 27540 },
-        { text: "10000이 1개, 1000이 3개, 100이 9개, 10이 2개인 수는 ?입니다.", answer: 13920 },
-        { text: "10000이 6개, 1000이 2개, 100이 7개, 10이 1개인 수는 ?입니다.", answer: 62710 },
-        { text: "10000이 3개, 1000이 1개, 100이 8개, 10이 5개인 수는 ?입니다.", answer: 31850 }
-    ];
-
-    startButton.addEventListener('click', startGame);
-    sendScoreButton.addEventListener('click', sendScore);
-
-    function startGame() {
-        playerName = playerNameInput.value.trim();
-        if (playerName === "") {
-            alert("이름을 입력해주세요.");
-            return;
-        }
-
-        score = 0;
-        lives = 3;
-        timeLimit = 40000;
-        elapsedTime = 0;
-        finalScore.textContent = '';
-        resultMessage.textContent = '';
-        responseDiv.textContent = '';
-        sendScoreButton.style.display = 'none';
-        startButton.style.display = 'none';
-        playerNameInput.disabled = true;
-        updateScoreBoard();
-        gameStartTime = Date.now();
-        nextQuestion();
+    // 시작 화면에서 이름 입력 후 게임 시작
+    function initGame() {
+      const name = document.getElementById("user-name").value;
+      if (name.trim() === "") {
+        alert("이름을 입력하세요!");
+        return;
+      }
+      userName = name;
+      document.getElementById("start-screen").style.display = "none";
+      document.getElementById("game-container").classList.remove("hidden");
     }
 
+    // 난이도 선택 후 게임 시작
+    function startGame(selectedDifficulty) {
+      difficulty = selectedDifficulty;
+      document.getElementById('difficulty-selection').classList.add('hidden');
+      document.getElementById('game').classList.remove('hidden');
+      if (difficulty === '최상') {
+        timeLimit = 20;
+        pointsPerQuestion = 20;
+      } else if (difficulty === '상') {
+        timeLimit = 30;
+        pointsPerQuestion = 15;
+      } else if (difficulty === '중') {
+        timeLimit = 40;
+        pointsPerQuestion = 13;
+      } else {
+        timeLimit = Infinity;
+        pointsPerQuestion = 10;
+      }
+      initialTimeLimit = timeLimit;
+      energyDecreaseRate = 100 / timeLimit;
+      totalTimeInterval = setInterval(() => {
+        totalTime++;
+        document.getElementById('total-time').innerText = `총 게임 시간: ${totalTime}초`;
+      }, 1000);
+      problemSequence = [...problems];
+      shuffleArray(problemSequence);
+      nextQuestion();
+    }
+
+    // 다음 문제 설정 (정답 제출 후 '다음문제' 버튼을 누르면 실행)
     function nextQuestion() {
-        clearInterval(energyBarInterval);
-        selectedAnswer = null;
-        timeExpired = false;
-        resultMessage.textContent = '';
+      answerSubmitted = false;
+      document.getElementById('next-question').classList.add('hidden');
+      // 옵션 버튼 재활성화
+      for (let i = 0; i < 4; i++) {
+        document.getElementById(`option${i}`).disabled = false;
+      }
+      if (lives <= 0) {
+        endGame();
+        return;
+      }
+      if (energyInterval) clearInterval(energyInterval);
+      energyWidth = 100;
+      document.getElementById('energy').style.width = '100%';
 
-        buttonsContainer.innerHTML = '';
-        questionDisplay.textContent = '';
-
-        if (nextQuestionButton) {
-            nextQuestionButton.remove();
-        }
-
-        const selectedQuestion = questions[Math.floor(Math.random() * questions.length)];
-        questionDisplay.textContent = selectedQuestion.text;
-        currentCorrectAnswer = selectedQuestion.answer;
-
-        const options = [currentCorrectAnswer];
-
-        if (typeof currentCorrectAnswer === 'number') {
-            while (options.length < 4) {
-                const wrongAnswer = currentCorrectAnswer + getRandomInt(-5000, 5000);
-                if (!options.includes(wrongAnswer) && wrongAnswer > 0) {
-                    options.push(wrongAnswer);
-                }
-            }
-        } else {
-            const wrongOptions = generateStringOptions(currentCorrectAnswer);
-            options.push(...wrongOptions.slice(0, 3));
-        }
-
-        options.sort(() => Math.random() - 0.5);
-
-        options.forEach(option => {
-            const button = document.createElement('button');
-            button.classList.add('answerButton');
-            button.textContent = option;
-            button.addEventListener('click', () => selectAnswer(option, button));
-            buttonsContainer.appendChild(button);
-        });
-
-        nextQuestionButton = document.createElement('button');
-        nextQuestionButton.textContent = '다음문제';
-        nextQuestionButton.style.fontSize = '1.5em';
-        nextQuestionButton.style.padding = '15px 30px';
-        nextQuestionButton.style.cursor = 'pointer';
-        nextQuestionButton.style.backgroundColor = '#2563eb';
-        nextQuestionButton.style.color = '#fff';
-        nextQuestionButton.style.border = 'none';
-        nextQuestionButton.style.borderRadius = '5px';
-        nextQuestionButton.style.marginTop = '30px';
-        nextQuestionButton.disabled = true;
-        nextQuestionButton.addEventListener('click', evaluateAnswer);
-        buttonsContainer.appendChild(nextQuestionButton);
-
-        startTimer();
-    }
-
-    function selectAnswer(option, button) {
-        const buttons = document.querySelectorAll('.answerButton');
-        buttons.forEach(btn => btn.style.borderColor = "#2563eb");
-        selectedAnswer = option;
-        button.style.borderColor = "green";
-        nextQuestionButton.disabled = false;
-    }
-
-    function evaluateAnswer() {
-        clearInterval(energyBarInterval);
-        nextQuestionButton.disabled = true;
-        const buttons = document.querySelectorAll('.answerButton');
-        buttons.forEach(btn => btn.disabled = true);
-
-        if (timeExpired || selectedAnswer === null) {
-            resultMessage.style.color = 'red';
-            resultMessage.textContent = '시간 초과!';
+      if (difficulty !== '하') {
+        timeLimit = initialTimeLimit * Math.pow(0.99, score / pointsPerQuestion);
+        energyDecreaseRate = 100 / timeLimit;
+        energyInterval = setInterval(() => {
+          energyWidth -= energyDecreaseRate * 0.1;
+          document.getElementById('energy').style.width = energyWidth + '%';
+          if (energyWidth <= 0) {
+            clearInterval(energyInterval);
             lives--;
-        } else {
-            if (selectedAnswer === currentCorrectAnswer) {
-                score += 10;
-                resultMessage.style.color = 'green';
-                resultMessage.textContent = '정답입니다!';
+            document.getElementById('lives').innerText = `남은 기회: ${lives}`;
+            showAnswer(false);
+            if (lives > 0) {
+              showNextQuestionButton();
             } else {
-                lives--;
-                resultMessage.style.color = 'red';
-                resultMessage.textContent = '오답입니다!';
+              endGame();
             }
-        }
-        updateScoreBoard();
-        if (lives > 0) {
-            setTimeout(nextQuestion, 1000);
-        } else {
-            endGame();
-        }
-    }
-
-    function startTimer() {
-        timeRemaining = timeLimit;
-        timeExpired = false;
-        updateEnergyBar();
-        energyBarInterval = setInterval(() => {
-            timeRemaining -= 100;
-            updateEnergyBar();
-            if (timeRemaining <= 0) {
-                clearInterval(energyBarInterval);
-                timeExpired = true;
-                const buttons = document.querySelectorAll('.answerButton');
-                buttons.forEach(btn => btn.disabled = true);
-                if (selectedAnswer === null) {
-                    resultMessage.style.color = 'red';
-                    resultMessage.textContent = '시간 초과!';
-                    nextQuestionButton.disabled = false;
-                }
-            }
+          }
         }, 100);
+      }
+      if (problemSequence.length === 0) {
+        problemSequence = [...problems];
+        shuffleArray(problemSequence);
+      }
+      currentProblemIndex = Math.floor(Math.random() * problemSequence.length);
+      const currentProblem = problemSequence[currentProblemIndex];
+      document.getElementById('question').innerText = currentProblem.question;
+      // 현재 문제의 정답을 전역 변수에 저장
+      window.currentAnswer = currentProblem.answer;
+      generateOptions(currentProblem.answer);
+      problemSequence.splice(currentProblemIndex, 1);
     }
 
-    function updateEnergyBar() {
-        const width = (timeRemaining / timeLimit) * 100;
-        energyBar.style.width = width + '%';
+    // 보기 생성
+    function generateOptions(correctAnswer) {
+      let options = new Set();
+      options.add(correctAnswer);
+      while (options.size < 4) {
+        let wrongAnswer = correctAnswer + Math.floor(Math.random() * 5) - 2;
+        if (wrongAnswer !== correctAnswer && wrongAnswer > 0 && wrongAnswer <= 20 && !options.has(wrongAnswer)) {
+          options.add(wrongAnswer);
+        }
+      }
+      options = Array.from(options);
+      shuffleArray(options);
+      for (let i = 0; i < 4; i++) {
+        document.getElementById(`option${i}`).innerText = options[i];
+        if (options[i] === correctAnswer) {
+          window.correctOption = i;
+        }
+      }
     }
 
-    function updateScoreBoard() {
-        scoreElement.textContent = score;
-        livesElement.textContent = lives;
+    // 정답 선택 시 처리: 옵션 클릭 후 '다음문제' 버튼을 통해 다음 문제로 넘어감
+    function checkAnswer(selectedOption) {
+      if (answerSubmitted) return;
+      answerSubmitted = true;
+      // 옵션 버튼 비활성화
+      for (let i = 0; i < 4; i++) {
+        document.getElementById(`option${i}`).disabled = true;
+      }
+      if (selectedOption === window.correctOption) {
+        score += pointsPerQuestion;
+        document.getElementById('score').innerText = `점수: ${score}`;
+        showPopup();
+      } else {
+        lives--;
+        document.getElementById('lives').innerText = `남은 기회: ${lives}`;
+        showAnswer(true);
+      }
+      showNextQuestionButton();
     }
 
+    // 다음 문제 버튼 노출
+    function showNextQuestionButton() {
+      document.getElementById('next-question').classList.remove('hidden');
+    }
+
+    function handleNextQuestion() {
+      nextQuestion();
+    }
+
+    // 오답 또는 시간 초과 시 정답 알림
+    function showAnswer(isWrong) {
+      if (isWrong) {
+        alert(`틀렸습니다! 정답은 ${window.currentAnswer}입니다.`);
+      } else {
+        alert(`시간 초과! 정답은 ${window.currentAnswer}입니다.`);
+      }
+    }
+
+    // 게임 종료: 타이머 정지 후 최종 점수와 경과시간을 보여주고 전송하기 버튼 표시
     function endGame() {
-        clearInterval(energyBarInterval);
-        buttonsContainer.innerHTML = '';
-        questionDisplay.textContent = '';
-        const endTime = Date.now();
-        elapsedTime = Math.floor((endTime - gameStartTime) / 1000);
-        finalScore.textContent = `게임 종료! 총점: ${score}점, 경과시간: ${elapsedTime}초`;
-        sendScoreButton.style.display = 'inline-block';
-        startButton.textContent = '다시 시작하기';
-        startButton.style.display = 'inline-block';
+      clearInterval(totalTimeInterval);
+      clearInterval(energyInterval);
+      document.getElementById('game-container').classList.add('hidden');
+      document.getElementById('final-score').innerText = `최종 점수: ${score}`;
+      document.getElementById('final-time').innerText = `총 경과 시간: ${totalTime}초`;
+      document.getElementById('end-screen').classList.remove('hidden');
     }
 
-    async function sendScore() {
-        const game = "game";
-        const name = playerName;
-        const scoreToSend = score;
-        const endTime = Date.now();
-        elapsedTime = Math.floor((endTime - gameStartTime) / 1000);
-
-        await saveData(game, name, scoreToSend, elapsedTime);
+    // 배열 섞기
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
     }
 
+    // 팝업 메시지 (일부 확률로 추가 보너스 효과)
+    function showPopup() {
+      let randomNumber = Math.random();
+      let popupText = '';
+      if (randomNumber < 0.0001) {
+        popupText = '축하합니다! 5000원 상품권에 당첨되셨습니다!';
+      } else if (randomNumber < 0.001) {
+        popupText = '축하합니다! 3000원 상품권에 당첨되셨습니다!';
+      } else if (randomNumber < 0.002) {
+        popupText = '축하합니다! 1회 면제권을 획득하셨습니다!';
+        lives++;
+        document.getElementById('lives').innerText = `남은 기회: ${lives}`;
+      }
+      if (popupText) {
+        const popup = document.getElementById('popup');
+        popup.innerText = popupText;
+        popup.style.display = 'block';
+        setTimeout(() => {
+          popup.style.display = 'none';
+        }, 3000);
+      }
+    }
+
+    // 서버에 데이터 전송하는 함수 (게임 제목은 "game", 이름, 점수, 경과시간 전송)
     async function saveData(game, name, score, elapsedTime) {
-        const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
-        const requestData = {
-            game,
-            name,
-            score: parseInt(score, 10),
-            elapsedTime: parseInt(elapsedTime, 10)
-        };
-
-        try {
-            const response = await fetch(FUNCTION_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestData)
-            });
-
-            const responseData = await response.json();
-
-            if (response.ok) {
-                responseDiv.style.color = 'green';
-                responseDiv.innerText = `성공: ${JSON.stringify(responseData, null, 2)}`;
-            } else {
-                responseDiv.style.color = 'red';
-                responseDiv.innerText = `오류: ${JSON.stringify(responseData, null, 2)}`;
-            }
-        } catch (error) {
-            console.error('요청 실패:', error);
-            responseDiv.style.color = 'red';
-            responseDiv.innerText = `네트워크 오류: ${error.message}`;
+      const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+      const requestData = {
+        game,
+        name,
+        score: parseInt(score, 10),
+        elapsedTime: parseInt(elapsedTime, 10)
+      };
+      try {
+        const response = await fetch(FUNCTION_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestData)
+        });
+        const responseData = await response.json();
+        if (response.ok) {
+          document.getElementById('response').innerText = `성공: ${JSON.stringify(responseData, null, 2)}`;
+        } else {
+          document.getElementById('response').innerText = `오류: ${JSON.stringify(responseData, null, 2)}`;
         }
+      } catch (error) {
+        console.error('요청 실패:', error);
+        document.getElementById('response').innerText = `네트워크 오류: ${error.message}`;
+      }
     }
 
-    function generateStringOptions(correctAnswer) {
-        const sampleReadings = [
-            "일만", "이만", "삼만", "사만", "오만",
-            "육만", "칠만", "팔만", "구만", "십만",
-            "만일", "만이", "만삼", "만사", "만오",
-            "만육", "만칠", "만팔", "만구"
-        ];
-        const options = [];
-        while (options.length < 3) {
-            const option = sampleReadings[getRandomInt(0, sampleReadings.length - 1)];
-            if (option !== correctAnswer && !options.includes(option)) {
-                options.push(option);
-            }
-        }
-        return options;
+    // 전송하기 버튼 클릭 시 데이터 전송
+    function sendData() {
+      saveData("game", userName, score, totalTime);
     }
-
-    function getRandomInt(min, max) {
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
-</script>
+  </script>
+</body>
+</html>
